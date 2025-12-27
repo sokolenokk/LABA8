@@ -1,74 +1,21 @@
 import argparse
-from typing import Dict, List
 
 import requests
 
-
-CLUBS: List[Dict[str, str]] = [
-    {"name": "FC Barcelona", "city": "Barcelona"},
-    {"name": "Manchester United", "city": "Manchester"},
-    {"name": "Ajax", "city": "Amsterdam"},
-    {"name": "PSV", "city": "Eindhoven"},
-    {"name": "Bayern Munich", "city": "Munich"},
-]
-
-DEFAULT_CLUBS_URL = (
-    "https://cdn.jsdelivr.net/npm/football.json@1.0.0/2015-16/en.1.clubs.json"
+from laba8.services.clubs_service import (
+    DEFAULT_CLUBS_URL,
+    fetch_remote_clubs,
+    format_local_clubs,
+    format_remote_clubs,
+    get_local_clubs,
+    search_clubs,
 )
-
-
-def cmd_list() -> None:
-    for club in CLUBS:
-        print(f'{club["name"]} — {club["city"]}')
-
-
-def cmd_search(query: str) -> None:
-    query_lower = query.lower()
-
-    results: List[Dict[str, str]] = []
-    for club in CLUBS:
-        name = club["name"].lower()
-        city = club["city"].lower()
-
-        if query_lower in name or query_lower in city:
-            results.append(club)
-
-    if not results:
-        print("No matches found")
-        return
-
-    for club in results:
-        print(f'{club["name"]} — {club["city"]}')
-
-
-def cmd_fetch(url: str, limit: int) -> None:
-    try:
-        response = requests.get(url, timeout=10)
-        response.raise_for_status()
-    except requests.RequestException as exc:
-        print(f"Request failed: {exc}")
-        return
-
-    data = response.json()
-
-    league_name = data.get("name", "Unknown league")
-    clubs = data.get("clubs", [])
-
-    print(f"Source: {league_name}")
-    print(f"Total clubs: {len(clubs)}")
-    print(f"Showing first {min(limit, len(clubs))}: \n")
-
-    for club in clubs[:limit]:
-        club_name = club.get("name", "Unknown club")
-        code = club.get("code", "-")
-        country = club.get("country", "-")
-        print(f"{club_name} ({code}) — {country}")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="laba8",
-        description="LABA8: CLI on argparse + requests",
+        description="LABA8: CLI with layered architecture (data + services)",
     )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -108,14 +55,33 @@ def main() -> None:
     args = parser.parse_args()
 
     if args.command == "list":
-        cmd_list()
+        clubs = get_local_clubs()
+        for line in format_local_clubs(clubs):
+            print(line)
+
     elif args.command == "search":
-        cmd_search(args.query)
+        clubs = get_local_clubs()
+        results = search_clubs(clubs, args.query)
+
+        if not results:
+            print("No matches found")
+            return
+
+        for line in format_local_clubs(results):
+            print(line)
+
     elif args.command == "fetch":
-        cmd_fetch(args.url, args.limit)
+        try:
+            league_name, clubs = fetch_remote_clubs(args.url, args.limit)
+        except requests.RequestException as exc:
+            print(f"Request failed: {exc}")
+            return
+
+        print(f"Source: {league_name}")
+        print(f"Showing first {len(clubs)}: \n")
+
+        for line in format_remote_clubs(clubs):
+            print(line)
+
     else:
         parser.error("Unknown command")
-
-
-if __name__ == "__main__":
-    main()
