@@ -8,6 +8,7 @@ packages = [{ include = "laba8", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.14"
+requests = "^2.32.5"
 
 [tool.poetry.group.dev.dependencies]
 flake8 = "^7.3.0"
